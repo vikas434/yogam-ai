@@ -19,7 +19,9 @@ import urllib.request
 
 API_URL = "https://openrouter.ai/api/v1/chat/completions"
 DEFAULT_MODEL = "google/gemini-3.1-pro-preview"
-_RETRYABLE = (429, 500, 502, 503)
+# Transient statuses worth retrying: timeouts, rate limits and upstream 5xx
+# (504 is common when OpenRouter's backing provider aborts a long request).
+_RETRYABLE = (408, 429, 500, 502, 503, 504, 524, 529)
 _REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
@@ -84,10 +86,16 @@ def _post(url, body, retries=5):
         try:
             with urllib.request.urlopen(req, timeout=600) as resp:
                 result = json.loads(resp.read().decode("utf-8"))
-            # OpenRouter can report failures inside an HTTP 200 body.
+            # OpenRouter can report failures inside an HTTP 200 body; transient
+            # upstream codes (e.g. a Google 504) are retried like HTTP errors.
             if "error" in result:
-                raise RuntimeError("API error: " + str(result["error"])[:400])
-            return result
+                err = result["error"]
+                code = err.get("code") if isinstance(err, dict) else None
+                if code not in _RETRYABLE:
+                    raise RuntimeError("API error: " + str(err)[:400])
+                last = "API error: " + str(err)[:400]
+            else:
+                return result
         except urllib.error.HTTPError as err:  # must precede URLError (its parent)
             text = err.read().decode("utf-8", "replace")[:400]
             if err.code not in _RETRYABLE:

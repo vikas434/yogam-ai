@@ -142,6 +142,13 @@ class OfflineTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "API error"):
             provider.complete("m", "s", [{"role": "user", "text": "x"}], [])
 
+    def test_upstream_504_is_retried_both_as_http_status_and_in_body(self):
+        gateway = {"error": {"message": "The operation was aborted", "code": 504}}
+        self.serve([(504, gateway), (200, gateway), (200, _msg("recovered"))])
+        r = provider.complete("m", "s", [{"role": "user", "text": "x"}], [])
+        self.assertEqual(r["text"], "recovered")
+        self.assertEqual(len(self.fake.seen), 3)
+
     def test_missing_key_message_never_echoes_a_key(self):
         saved = os.environ.pop("OPENROUTER_API_KEY")
         provider._REPO_ROOT, real = "/nonexistent", provider._REPO_ROOT
