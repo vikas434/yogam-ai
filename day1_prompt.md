@@ -65,12 +65,12 @@ Write yogam/provider.py to this exact contract.
   prompt_tokens and completion_tokens to input and output.
 - _post(url, body, retries=5): urllib, headers Authorization "Bearer <key>"
   (header only, never in the URL or in error messages), Content-Type
-  application/json and X-Title "Yogam", timeout 600. On HTTP 429/500/502/503:
+  application/json and X-Title "Yogam", timeout 600. On HTTP 408/429/500/502/503/504/524/529:
   sleep 2**attempt * 2 seconds and retry. On other HTTP errors: raise
   RuntimeError with the status and the first 400 characters of the error body.
-  Retry URLError/TimeoutError the same way. Also raise RuntimeError if the
-  response JSON carries a top-level "error" key (OpenRouter can return one with
-  HTTP 200).
+  Retry URLError/TimeoutError the same way. Also handle a top-level "error" key in
+  the response JSON (OpenRouter can return one with HTTP 200): retry it when its
+  code is one of the retryable statuses above, otherwise raise RuntimeError.
 
 Write yogam/loop.py to this exact contract.
 - run_loop(model, system, messages, tools, on_event, before_tool, max_turns=80,
