@@ -22,8 +22,24 @@ remaining check (see [Try it live](#try-it-live)).
 
 ## How it works
 
-An agent is a model called in a loop: ask, run the tools the model requests, feed the results
-back, repeat until it answers in plain text.
+![Animated diagram of the Yogam agent loop](docs/yogam-agent-loop.gif)
+
+An agent is simply an AI model called in a loop. In plain English:
+
+1. **You give a task**, for example "Roll 3 dice and tell me whether the total beats 10".
+2. **`run_loop`** keeps the conversation and sends it, with the list of available tools, to the provider.
+3. **`provider.complete`** talks to the AI model through OpenRouter and brings back its reply.
+4. **Read the reply.** The model either answers in plain text or asks to use a tool.
+   - **Plain text:** the loop is done and you get the final answer.
+   - **Tool request:** the call goes through the `before_tool` gate.
+5. **`before_tool` decides.** If it allows the call, `Tool.run` does the real work. If it says no, the model is simply told `BLOCKED: <reason>`.
+6. **The result goes back into the conversation**, and the loop asks the model again. This repeats until the model answers without asking for a tool.
+
+Safety nets: a tool that crashes becomes an `ERROR: ...` result instead of ending the run, and
+after `max_turns` (80 by default) the loop asks the model for a final wrap-up answer.
+
+<details>
+<summary>Same flow as a Mermaid diagram</summary>
 
 ```mermaid
 flowchart LR
@@ -39,6 +55,8 @@ flowchart LR
     B --> L
     L -->|no tool calls| A[Final answer]
 ```
+
+</details>
 
 The provider is the only file that knows the wire format. Everything above it speaks a small
 neutral message format, so switching model or vendor touches one file.
@@ -117,6 +135,8 @@ yogam/
   loop.py        The agent loop, tool execution, turn budget
 demos/
   day1_dice.py   One hand-written tool driven by the loop
+docs/
+  yogam-agent-loop.gif   Animated explanation of the loop (made with Archify)
 tests/
   test_offline.py  Provider and loop tested against a fake OpenRouter server
 day1_prompt.md   The build prompt for day 1
